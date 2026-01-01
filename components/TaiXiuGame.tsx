@@ -1,14 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { GameState, UserStats, BetChoice, GameHistory, BetResult } from '../types';
+import React, { useState, useEffect } from 'react';
+import { GameState, UserStats, BetChoice, GameHistory } from '../types';
 import { BET_LEVELS, DICE_FACES, INITIAL_GOLD } from '../constants';
 import { generateBetCommentary } from '../services/geminiService';
 import TopUpPage from './TopUpPage';
 import WithdrawPage from './WithdrawPage';
 
 const TaiXiuGame: React.FC = () => {
+  // An toàn hóa Stats Initialization
   const [stats, setStats] = useState<UserStats>(() => {
-    const saved = localStorage.getItem('taixiu_stats');
     const defaultStats: UserStats = {
       gold: INITIAL_GOLD,
       totalBets: 0,
@@ -18,14 +18,15 @@ const TaiXiuGame: React.FC = () => {
       rodLevel: 0,
       totalWeight: 0
     };
-
-    if (saved) {
-      try {
+    
+    try {
+      const saved = localStorage.getItem('taixiu_stats');
+      if (saved) {
         const parsed = JSON.parse(saved);
         return { ...defaultStats, ...parsed };
-      } catch (e) {
-        return defaultStats;
       }
+    } catch (e) {
+      console.warn("Failed to parse stats from localStorage", e);
     }
     return defaultStats;
   });
@@ -34,21 +35,35 @@ const TaiXiuGame: React.FC = () => {
   const [currentBet, setCurrentBet] = useState<number>(100);
   const [currentChoice, setCurrentChoice] = useState<BetChoice | null>(null);
   const [dice, setDice] = useState<number[]>([1, 2, 3]);
+  
+  // An toàn hóa History Initialization
   const [history, setHistory] = useState<GameHistory[]>(() => {
-    const saved = localStorage.getItem('taixiu_history');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('taixiu_history');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn("Failed to parse history from localStorage", e);
+    }
+    return [];
   });
+
   const [commentary, setCommentary] = useState<string>("Vạn sự khởi đầu nan, chúc bạn may mắn!");
   const [isOpening, setIsOpening] = useState(false);
 
-  // Sync Stats to LocalStorage
   useEffect(() => {
-    localStorage.setItem('taixiu_stats', JSON.stringify(stats));
+    try {
+      localStorage.setItem('taixiu_stats', JSON.stringify(stats));
+    } catch (e) {
+      console.error("Save stats error", e);
+    }
   }, [stats]);
 
-  // Sync History to LocalStorage
   useEffect(() => {
-    localStorage.setItem('taixiu_history', JSON.stringify(history));
+    try {
+      localStorage.setItem('taixiu_history', JSON.stringify(history));
+    } catch (e) {
+      console.error("Save history error", e);
+    }
   }, [history]);
 
   const handleBet = async () => {
@@ -98,8 +113,14 @@ const TaiXiuGame: React.FC = () => {
       setIsOpening(true);
       setGameState('RESULT');
 
-      const aiComment = await generateBetCommentary(result, total, finalDice, isWin, currentBet);
-      setCommentary(aiComment);
+      // Catch lỗi khi gọi AI Service
+      try {
+        const aiComment = await generateBetCommentary(result, total, finalDice, isWin, currentBet);
+        setCommentary(aiComment);
+      } catch (err) {
+        console.error("AI Commentary Error:", err);
+        setCommentary(isWin ? "Thắng lớn rồi!" : "Thua rồi, đừng nản!");
+      }
     }, 2000);
   };
 
@@ -119,7 +140,6 @@ const TaiXiuGame: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center p-4 md:p-8 font-sans">
-      {/* Header */}
       <div className="w-full max-w-5xl flex flex-wrap justify-between items-center mb-8 gap-4">
         <div className="bg-slate-900 border border-slate-700 p-3 rounded-2xl flex items-center gap-4 shadow-xl">
           <div className="text-2xl animate-pulse">💰</div>
@@ -149,7 +169,6 @@ const TaiXiuGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Game Table */}
       <div className="w-full max-w-4xl bg-slate-900/50 border-2 border-slate-800 rounded-[3rem] p-8 relative shadow-2xl backdrop-blur-sm overflow-hidden">
         <div className="absolute inset-0 bg-radial-gradient from-blue-900/10 to-transparent pointer-events-none"></div>
 
@@ -254,7 +273,6 @@ const TaiXiuGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer Stats & History */}
       <div className="w-full max-w-4xl mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 bg-slate-900/80 border border-slate-800 p-6 rounded-[2rem] shadow-xl overflow-hidden">
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-4 flex justify-between">
@@ -294,7 +312,6 @@ const TaiXiuGame: React.FC = () => {
         </div>
       </div>
 
-      {/* Overlays */}
       {gameState === 'TOPUP' && (
         <TopUpPage 
           onClose={() => setGameState('BETTING')} 
