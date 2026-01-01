@@ -7,7 +7,7 @@ import TopUpPage from './TopUpPage';
 import WithdrawPage from './WithdrawPage';
 
 const TaiXiuGame: React.FC = () => {
-  // An toàn hóa Stats Initialization
+  // An toàn hóa Stats Initialization - Dùng Try/Catch để tránh crash khi LocalStorage hỏng
   const [stats, setStats] = useState<UserStats>(() => {
     const defaultStats: UserStats = {
       gold: INITIAL_GOLD,
@@ -21,12 +21,12 @@ const TaiXiuGame: React.FC = () => {
     
     try {
       const saved = localStorage.getItem('taixiu_stats');
-      if (saved) {
+      if (saved && saved !== "undefined") {
         const parsed = JSON.parse(saved);
         return { ...defaultStats, ...parsed };
       }
     } catch (e) {
-      console.warn("Failed to parse stats from localStorage", e);
+      console.error("Lỗi đọc stats từ LocalStorage:", e);
     }
     return defaultStats;
   });
@@ -36,13 +36,12 @@ const TaiXiuGame: React.FC = () => {
   const [currentChoice, setCurrentChoice] = useState<BetChoice | null>(null);
   const [dice, setDice] = useState<number[]>([1, 2, 3]);
   
-  // An toàn hóa History Initialization
   const [history, setHistory] = useState<GameHistory[]>(() => {
     try {
       const saved = localStorage.getItem('taixiu_history');
-      if (saved) return JSON.parse(saved);
+      if (saved && saved !== "undefined") return JSON.parse(saved);
     } catch (e) {
-      console.warn("Failed to parse history from localStorage", e);
+      console.error("Lỗi đọc lịch sử từ LocalStorage:", e);
     }
     return [];
   });
@@ -54,7 +53,7 @@ const TaiXiuGame: React.FC = () => {
     try {
       localStorage.setItem('taixiu_stats', JSON.stringify(stats));
     } catch (e) {
-      console.error("Save stats error", e);
+      console.error("Không thể lưu stats:", e);
     }
   }, [stats]);
 
@@ -62,7 +61,7 @@ const TaiXiuGame: React.FC = () => {
     try {
       localStorage.setItem('taixiu_history', JSON.stringify(history));
     } catch (e) {
-      console.error("Save history error", e);
+      console.error("Không thể lưu lịch sử:", e);
     }
   }, [history]);
 
@@ -80,7 +79,8 @@ const TaiXiuGame: React.FC = () => {
       ]);
     }, 100);
 
-    setTimeout(async () => {
+    // Sử dụng setTimeout bọc trong logic an toàn
+    setTimeout(() => {
       clearInterval(rollInterval);
       
       const finalDice = [
@@ -113,14 +113,13 @@ const TaiXiuGame: React.FC = () => {
       setIsOpening(true);
       setGameState('RESULT');
 
-      // Catch lỗi khi gọi AI Service
-      try {
-        const aiComment = await generateBetCommentary(result, total, finalDice, isWin, currentBet);
-        setCommentary(aiComment);
-      } catch (err) {
-        console.error("AI Commentary Error:", err);
-        setCommentary(isWin ? "Thắng lớn rồi!" : "Thua rồi, đừng nản!");
-      }
+      // Gọi AI Commentary một cách an toàn
+      generateBetCommentary(result, total, finalDice, isWin, currentBet)
+        .then(setCommentary)
+        .catch(err => {
+          console.error("Lỗi AI:", err);
+          setCommentary(isWin ? "Chúc mừng bạn đã thắng!" : "Rất tiếc, chúc bạn may mắn lần sau!");
+        });
     }, 2000);
   };
 
